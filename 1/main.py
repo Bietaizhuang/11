@@ -11,85 +11,130 @@ import tkinter.scrolledtext as st
 env_var_name = "OLLAMA_MODELS"
 model_library_url = "https://ollama.com/library"
 
-# 中英语言资源
 LANGUAGES = {
     "zh": {
         "title": "Ollama 快速安装器",
+        "welcome": "欢迎使用 Ollama 快速安装器，请选择语言：",
+        "next": "下一步",
+        "open_download": "打开 Ollama 官网下载安装包",
+        "confirm_downloaded": "我已在官网下载完成",
         "select_path": "请选择模型存储路径：",
         "browse": "浏览...",
         "set_env": "设置 OLLAMA_MODELS 环境变量",
-        "open_download": "打开 Ollama 官网下载安装包",
         "model_list": "可选模型列表（点击安装）：",
         "warning_no_path": "请先选择路径",
         "success_env": "环境变量已设置为：",
         "confirm_pull": "是否下载模型：",
-        "language_toggle": "切换为 English"
+        "cancel_download": "❌ 取消下载",
+        "download_complete": "模型 {model} 已成功下载。"
     },
     "en": {
         "title": "Ollama Quick Installer",
+        "welcome": "Welcome to the Ollama Quick Installer. Please select a language:",
+        "next": "Next",
+        "open_download": "Open Ollama website to download",
+        "confirm_downloaded": "I have completed the download",
         "select_path": "Please select model storage path:",
         "browse": "Browse...",
         "set_env": "Set OLLAMA_MODELS environment variable",
-        "open_download": "Open Ollama website to download",
         "model_list": "Available models (click to install):",
         "warning_no_path": "Please select a path first",
         "success_env": "Environment variable set to:",
         "confirm_pull": "Do you want to download the model:",
-        "language_toggle": "切换为中文"
+        "cancel_download": "❌ Cancel Download",
+        "download_complete": "Model {model} has been successfully downloaded."
     }
 }
+
 
 class OllamaInstallerApp:
     def __init__(self, root):
         self.root = root
         self.language = "zh"
         self.texts = LANGUAGES[self.language]
+        self.models = []
 
+        self.root.geometry("600x500")
         self.root.title(self.texts["title"])
-        self.root.geometry("500x600")
 
-        self.path_label = tk.Label(root)
+        self.frames = {}
+        self.create_frames()
+        self.show_frame("welcome")
+
+    def create_frames(self):
+        self.frames["welcome"] = self.create_welcome_frame()
+        self.frames["download"] = self.create_download_frame()
+        self.frames["models"] = self.create_model_frame()
+
+    def show_frame(self, name):
+        for frame in self.frames.values():
+            frame.pack_forget()
+        self.frames[name].pack(fill="both", expand=True)
+
+    def create_welcome_frame(self):
+        frame = tk.Frame(self.root)
+        label = tk.Label(frame, text=self.texts["welcome"], font=("Arial", 14))
+        label.pack(pady=40)
+
+        btn_zh = tk.Button(frame, text="中文", width=15, command=lambda: self.set_language("zh"))
+        btn_zh.pack(pady=10)
+
+        btn_en = tk.Button(frame, text="English", width=15, command=lambda: self.set_language("en"))
+        btn_en.pack(pady=10)
+
+        return frame
+
+    def create_download_frame(self):
+        frame = tk.Frame(self.root)
+
+        download_btn = tk.Button(frame, text=self.texts["open_download"], font=("Arial", 12), height=2, width=40,
+                                 command=lambda: webbrowser.open("https://ollama.com/download/windows"))
+        download_btn.pack(pady=60)
+
+        confirm_btn = tk.Button(frame, text=self.texts["confirm_downloaded"], width=30,
+                                command=lambda: self.show_frame("models"))
+        confirm_btn.pack(pady=10)
+
+        return frame
+
+    def create_model_frame(self):
+        frame = tk.Frame(self.root)
+
+        self.path_label = tk.Label(frame, text=self.texts["select_path"])
         self.path_label.pack()
 
-        self.path_entry = tk.Entry(root, width=50)
+        self.path_entry = tk.Entry(frame, width=50)
         self.path_entry.pack()
 
-        self.browse_btn = tk.Button(root, command=self.select_folder)
-        self.browse_btn.pack()
+        browse_btn = tk.Button(frame, text=self.texts["browse"], command=self.select_folder)
+        browse_btn.pack()
 
-        self.env_btn = tk.Button(root, command=self.set_env_var)
-        self.env_btn.pack(pady=10)
+        env_btn = tk.Button(frame, text=self.texts["set_env"], command=self.set_env_var)
+        env_btn.pack(pady=10)
 
-        self.download_btn = tk.Button(root, command=self.open_download_page)
-        self.download_btn.pack(pady=10)
-
-        self.model_label = tk.Label(root)
+        self.model_label = tk.Label(frame, text=self.texts["model_list"])
         self.model_label.pack(pady=5)
 
-        self.model_listbox = tk.Listbox(root, width=50, height=15)
+        self.model_listbox = tk.Listbox(frame, width=50, height=15)
         self.model_listbox.pack()
         self.model_listbox.bind('<<ListboxSelect>>', self.model_selected)
 
-        self.lang_btn = tk.Button(root, text=self.texts["language_toggle"], command=self.toggle_language)
-        self.lang_btn.pack(pady=10)
-
-        self.models = []
         self.load_models()
-        self.update_language()
 
-    def update_language(self):
+        return frame
+
+    def set_language(self, lang):
+        self.language = lang
         self.texts = LANGUAGES[self.language]
         self.root.title(self.texts["title"])
-        self.path_label.config(text=self.texts["select_path"])
-        self.browse_btn.config(text=self.texts["browse"])
-        self.env_btn.config(text=self.texts["set_env"])
-        self.download_btn.config(text=self.texts["open_download"])
-        self.model_label.config(text=self.texts["model_list"])
-        self.lang_btn.config(text=self.texts["language_toggle"])
 
-    def toggle_language(self):
-        self.language = "en" if self.language == "zh" else "zh"
-        self.update_language()
+        # 销毁旧 Frame，刷新页面内容
+        for frame in self.frames.values():
+            frame.destroy()
+        self.frames.clear()
+        self.create_frames()
+
+        self.show_frame("download")
 
     def select_folder(self):
         folder = filedialog.askdirectory()
@@ -104,9 +149,6 @@ class OllamaInstallerApp:
             return
         os.system(f'setx {env_var_name} "{path}" /M')
         messagebox.showinfo(self.texts["title"], f"{self.texts['success_env']} {path}")
-
-    def open_download_page(self):
-        webbrowser.open("https://ollama.com/download/windows")
 
     def load_models(self):
         self.models = self.fetch_online_models()
@@ -148,13 +190,10 @@ class OllamaInstallerApp:
                     text=True,
                     bufsize=1
                 )
-
                 self.show_download_window(process, model_name)
-
             except Exception as e:
                 messagebox.showerror("错误", f"下载失败：{e}")
 
-        # 启动后台线程防止主界面卡顿
         threading.Thread(target=run_pull, daemon=True).start()
 
     def show_download_window(self, process, model_name):
@@ -162,7 +201,6 @@ class OllamaInstallerApp:
         win.title(f"正在下载：{model_name}")
         win.geometry("600x400")
 
-        # 设置绿色进度条样式
         style = ttk.Style(win)
         style.theme_use('default')
         style.configure("green.Horizontal.TProgressbar", troughcolor='white', bordercolor='black',
@@ -175,17 +213,10 @@ class OllamaInstallerApp:
         log_area = st.ScrolledText(win, wrap=tk.WORD)
         log_area.pack(expand=True, fill=tk.BOTH)
 
-        cancel_btn = tk.Button(win, text="❌ 取消下载", fg="red", command=lambda: cancel_download())
+        cancel_btn = tk.Button(win, text=self.texts["cancel_download"], fg="red", command=lambda: cancel_download())
         cancel_btn.pack(pady=5)
 
-        # 模拟步骤识别
-        steps = [
-            "pulling manifest",
-            "pulling layers",
-            "extracting",
-            "verifying",
-            "success"
-        ]
+        steps = ["pulling manifest", "pulling layers", "extracting", "verifying", "success"]
         completed_steps = set()
         cancelled = False
 
@@ -223,7 +254,7 @@ class OllamaInstallerApp:
                     progress["value"] = 100
                     log_area.insert(tk.END, f"\n✅ 模型 {model_name} 下载完成。\n")
                     log_area.see(tk.END)
-                    messagebox.showinfo("下载完成", f"模型 {model_name} 已成功下载。")
+                    messagebox.showinfo("下载完成", self.texts["download_complete"].format(model=model_name))
                     win.title("下载完成")
                 else:
                     log_area.insert(tk.END, f"\n❌ 下载失败，错误码：{process.returncode}\n")
