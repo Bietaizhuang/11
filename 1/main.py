@@ -15,7 +15,7 @@ LANGUAGES = {
     "zh": {
         "title": "Ollama 快速安装器",
         "welcome": "欢迎使用 Ollama 快速安装器，请选择语言：",
-        "next": "下一步",
+        "step": "当前步骤：第 {step} 步，共 3 步",
         "open_download": "打开 Ollama 官网下载安装包",
         "confirm_downloaded": "我已在官网下载完成",
         "select_path": "请选择模型存储路径：",
@@ -26,12 +26,14 @@ LANGUAGES = {
         "success_env": "环境变量已设置为：",
         "confirm_pull": "是否下载模型：",
         "cancel_download": "❌ 取消下载",
-        "download_complete": "模型 {model} 已成功下载。"
+        "download_complete": "模型 {model} 已成功下载。",
+        "back": "返回",
+        "language_toggle": "切换语言"
     },
     "en": {
         "title": "Ollama Quick Installer",
         "welcome": "Welcome to the Ollama Quick Installer. Please select a language:",
-        "next": "Next",
+        "step": "Current Step: {step} of 3",
         "open_download": "Open Ollama website to download",
         "confirm_downloaded": "I have completed the download",
         "select_path": "Please select model storage path:",
@@ -42,10 +44,11 @@ LANGUAGES = {
         "success_env": "Environment variable set to:",
         "confirm_pull": "Do you want to download the model:",
         "cancel_download": "❌ Cancel Download",
-        "download_complete": "Model {model} has been successfully downloaded."
+        "download_complete": "Model {model} has been successfully downloaded.",
+        "back": "Back",
+        "language_toggle": "Toggle Language"
     }
 }
-
 
 class OllamaInstallerApp:
     def __init__(self, root):
@@ -53,13 +56,41 @@ class OllamaInstallerApp:
         self.language = "zh"
         self.texts = LANGUAGES[self.language]
         self.models = []
+        self.current_step = 1
 
         self.root.geometry("600x500")
         self.root.title(self.texts["title"])
 
+        self.header_frame = tk.Frame(self.root)
+        self.header_frame.pack(fill="x")
+        self.step_label = tk.Label(self.header_frame, text="", font=("Arial", 10), anchor="w")
+        self.step_label.pack(side="left", padx=10, pady=5)
+        self.lang_btn = tk.Button(self.header_frame, text=self.texts["language_toggle"],
+                                  command=self.toggle_language)
+        self.lang_btn.pack(side="right", padx=10)
+
+        self.content_frame = tk.Frame(self.root)
+        self.content_frame.pack(expand=True, fill="both")
         self.frames = {}
         self.create_frames()
         self.show_frame("welcome")
+
+    def update_header(self):
+        self.step_label.config(text=self.texts["step"].format(step=self.current_step))
+        self.lang_btn.config(text=self.texts["language_toggle"])
+        self.root.title(self.texts["title"])
+
+    def toggle_language(self):
+        self.language = "en" if self.language == "zh" else "zh"
+        self.texts = LANGUAGES[self.language]
+        self.rebuild_ui()
+
+    def rebuild_ui(self):
+        for frame in self.frames.values():
+            frame.destroy()
+        self.frames.clear()
+        self.create_frames()
+        self.show_frame(self.current_frame_name)
 
     def create_frames(self):
         self.frames["welcome"] = self.create_welcome_frame()
@@ -70,38 +101,43 @@ class OllamaInstallerApp:
         for frame in self.frames.values():
             frame.pack_forget()
         self.frames[name].pack(fill="both", expand=True)
+        self.current_frame_name = name
+        self.current_step = {"welcome": 1, "download": 2, "models": 3}.get(name, 1)
+        self.update_header()
 
     def create_welcome_frame(self):
-        frame = tk.Frame(self.root)
+        frame = tk.Frame(self.content_frame)
         label = tk.Label(frame, text=self.texts["welcome"], font=("Arial", 14))
         label.pack(pady=40)
 
         btn_zh = tk.Button(frame, text="中文", width=15, command=lambda: self.set_language("zh"))
         btn_zh.pack(pady=10)
-
         btn_en = tk.Button(frame, text="English", width=15, command=lambda: self.set_language("en"))
         btn_en.pack(pady=10)
 
         return frame
 
     def create_download_frame(self):
-        frame = tk.Frame(self.root)
+        frame = tk.Frame(self.content_frame)
 
         download_btn = tk.Button(frame, text=self.texts["open_download"], font=("Arial", 12), height=2, width=40,
                                  command=lambda: webbrowser.open("https://ollama.com/download/windows"))
-        download_btn.pack(pady=60)
+        download_btn.pack(pady=40)
 
         confirm_btn = tk.Button(frame, text=self.texts["confirm_downloaded"], width=30,
                                 command=lambda: self.show_frame("models"))
         confirm_btn.pack(pady=10)
 
+        back_btn = tk.Button(frame, text=self.texts["back"], command=lambda: self.show_frame("welcome"))
+        back_btn.pack(pady=20)
+
         return frame
 
     def create_model_frame(self):
-        frame = tk.Frame(self.root)
+        frame = tk.Frame(self.content_frame)
 
-        self.path_label = tk.Label(frame, text=self.texts["select_path"])
-        self.path_label.pack()
+        path_label = tk.Label(frame, text=self.texts["select_path"])
+        path_label.pack()
 
         self.path_entry = tk.Entry(frame, width=50)
         self.path_entry.pack()
@@ -112,12 +148,15 @@ class OllamaInstallerApp:
         env_btn = tk.Button(frame, text=self.texts["set_env"], command=self.set_env_var)
         env_btn.pack(pady=10)
 
-        self.model_label = tk.Label(frame, text=self.texts["model_list"])
-        self.model_label.pack(pady=5)
+        model_label = tk.Label(frame, text=self.texts["model_list"])
+        model_label.pack(pady=5)
 
         self.model_listbox = tk.Listbox(frame, width=50, height=15)
         self.model_listbox.pack()
         self.model_listbox.bind('<<ListboxSelect>>', self.model_selected)
+
+        back_btn = tk.Button(frame, text=self.texts["back"], command=lambda: self.show_frame("download"))
+        back_btn.pack(pady=10)
 
         self.load_models()
 
@@ -126,14 +165,7 @@ class OllamaInstallerApp:
     def set_language(self, lang):
         self.language = lang
         self.texts = LANGUAGES[self.language]
-        self.root.title(self.texts["title"])
-
-        # 销毁旧 Frame，刷新页面内容
-        for frame in self.frames.values():
-            frame.destroy()
-        self.frames.clear()
-        self.create_frames()
-
+        self.rebuild_ui()
         self.show_frame("download")
 
     def select_folder(self):
@@ -213,7 +245,8 @@ class OllamaInstallerApp:
         log_area = st.ScrolledText(win, wrap=tk.WORD)
         log_area.pack(expand=True, fill=tk.BOTH)
 
-        cancel_btn = tk.Button(win, text=self.texts["cancel_download"], fg="red", command=lambda: cancel_download())
+        cancel_btn = tk.Button(win, text=self.texts["cancel_download"], fg="red",
+                               command=lambda: cancel_download())
         cancel_btn.pack(pady=5)
 
         steps = ["pulling manifest", "pulling layers", "extracting", "verifying", "success"]
@@ -269,3 +302,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = OllamaInstallerApp(root)
     root.mainloop()
+
