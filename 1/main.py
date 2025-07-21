@@ -1,10 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 import subprocess
 import os
 import webbrowser
 import requests
 from bs4 import BeautifulSoup
+import threading
+import tkinter.scrolledtext as st
 
 env_var_name = "OLLAMA_MODELS"
 model_library_url = "https://ollama.com/library"
@@ -44,7 +46,7 @@ class OllamaInstallerApp:
         self.texts = LANGUAGES[self.language]
 
         self.root.title(self.texts["title"])
-        self.root.geometry("500x500")
+        self.root.geometry("500x600")
 
         self.path_label = tk.Label(root)
         self.path_label.pack()
@@ -68,7 +70,7 @@ class OllamaInstallerApp:
         self.model_listbox.pack()
         self.model_listbox.bind('<<ListboxSelect>>', self.model_selected)
 
-        self.lang_btn = tk.Button(root, command=self.toggle_language)
+        self.lang_btn = tk.Button(root, text=self.texts["language_toggle"], command=self.toggle_language)
         self.lang_btn.pack(pady=10)
 
         self.models = []
@@ -137,10 +139,100 @@ class OllamaInstallerApp:
             self.pull_model(selected)
 
     def pull_model(self, model_name):
-        try:
-            subprocess.run(["ollama", "pull", model_name], check=True)
-        except Exception as e:
-            messagebox.showerror("错误", f"下载模型失败：{e}")
+        def run_pull():
+            try:
+                process = subprocess.Popen(
+                    ["ollama", "pull", model_name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                self.show_download_window(process, model_name)
+
+            except Exception as e:
+                messagebox.showerror("错误", f"下载失败：{e}")
+
+        # 启动后台线程防止主界面卡顿
+        threading.Thread(target=run_pull, daemon=True).start()
+
+    def show_download_window(self, process, model_name):
+        win = tk.Toplevel(self.root)
+        win.title(f"正在下载：{model_name}")
+        win.geometry("600x400")
+
+        # 设置绿色进度条样式
+        style = ttk.Style(win)
+        style.theme_use('default')
+        style.configure("green.Horizontal.TProgressbar", troughcolor='white', bordercolor='black',
+                        background='green', lightcolor='green', darkcolor='green')
+
+        progress = ttk.Progressbar(win, orient='horizontal', length=500, mode='determinate',
+                                   style="green.Horizontal.TProgressbar", maximum=100)
+        progress.pack(pady=5)
+
+        log_area = st.ScrolledText(win, wrap=tk.WORD)
+        log_area.pack(expand=True, fill=tk.BOTH)
+
+        cancel_btn = tk.Button(win, text="❌ 取消下载", fg="red", command=lambda: cancel_download())
+        cancel_btn.pack(pady=5)
+
+        # 模拟步骤识别
+        steps = [
+            "pulling manifest",
+            "pulling layers",
+            "extracting",
+            "verifying",
+            "success"
+        ]
+        completed_steps = set()
+        cancelled = False
+
+        def cancel_download():
+            nonlocal cancelled
+            cancelled = True
+            try:
+                process.terminate()
+            except Exception:
+                pass
+            progress.stop()
+            log_area.insert(tk.END, "\n❌ 下载已取消。\n")
+            log_area.see(tk.END)
+            cancel_btn.config(state=tk.DISABLED)
+            win.title("下载已取消")
+
+        def read_output():
+            nonlocal cancelled
+            for line in process.stdout:
+                if cancelled:
+                    break
+                log_area.insert(tk.END, line)
+                log_area.see(tk.END)
+
+                for i, step in enumerate(steps):
+                    if step in line and step not in completed_steps:
+                        completed_steps.add(step)
+                        percent = int((len(completed_steps)) / len(steps) * 100)
+                        progress["value"] = percent
+                        break
+
+            process.wait()
+            if not cancelled:
+                if process.returncode == 0:
+                    progress["value"] = 100
+                    log_area.insert(tk.END, f"\n✅ 模型 {model_name} 下载完成。\n")
+                    log_area.see(tk.END)
+                    messagebox.showinfo("下载完成", f"模型 {model_name} 已成功下载。")
+                    win.title("下载完成")
+                else:
+                    log_area.insert(tk.END, f"\n❌ 下载失败，错误码：{process.returncode}\n")
+                    log_area.see(tk.END)
+                    win.title("下载失败")
+            cancel_btn.config(state=tk.DISABLED)
+
+        threading.Thread(target=read_output, daemon=True).start()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
